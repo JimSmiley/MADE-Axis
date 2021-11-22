@@ -1,0 +1,15 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/HoloLensScene.unity
+    guid: 12ebdc7abf8dafa40a5fe64dfaf0584d
+  m_configObjects:
+    Unity.XR.WindowsMR.Settings: {fileID: 11400000, guid: be79e640eb7edb946ae17c0b089681c9,
+      type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: c797ebf4b7217e84e8c790e42e7beb6d,
+      type: 2}
