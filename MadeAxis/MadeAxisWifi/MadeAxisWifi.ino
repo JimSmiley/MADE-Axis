@@ -28,7 +28,6 @@ BluetoothSerial SerialBT;
 #include <OSCBundle.h>
 #include <OSCData.h>
 
-//Hardcode your wifi network name and passwords in here
 char ssid[] = "";          // wifi network name - ESP32 does not support 5Ghz, 2.5 only.
 char pass[] = "";    
 // your network password
@@ -40,8 +39,8 @@ char pass2[] = "";
  */
 
 WiFiUDP Udp;                               
-const IPAddress outIp (255,255,255,255);//255,255,255,255 is universal broadcast to all on network, or you could directly address an ip address. Don't think you can do multiples 
-const unsigned int outPort = 9000;          // remote port to send OSC to. Hololens seems to like 9000 up
+const IPAddress outIp (255,255,255,255);//255,255,255,255 is universal broadcast to all on network.
+const unsigned int outPort = 9000;          // remote port to receive OSC
 const unsigned int localPort = 9001;        // local port to listen for OSC packets
 
 OSCErrorCode error;
@@ -125,8 +124,9 @@ bool steppedB = false;
 int steppedDistanceA = 20;
 int steppedDistanceB = 20;
 int slowedEncoder = 0; // encoder interrupt can bounce and trigger faster than update and sendOutput, so can jump. This increments only as fast as data can be sent
-long idleTime; //To get the twitches out of the slider between values if it is sitting still. Need to move slider by greater than 1 to reset, otherwise will ignore twitches of just 1
-int idleTimeThreshold = 500;
+long idleTime1;
+long idleTime2;//To get the twitches out of the slider between values if it is sitting still. Need to move slider by greater than 1 to reset, otherwise will ignore twitches of just 1
+int idleTimeThreshold = 800; // time in ms for idle to de-twitch sliders
 int joystickThreshold = 20;
 
 
@@ -191,7 +191,7 @@ if (digitalRead(topSwitch) == HIGH)
   wiggle();
   setLED(0);
 }
-else  // Holding button down to set secondary wifi network instead
+else
 {
   WiFi.begin(ssid2, pass2);
   Udp.begin(localPort); 
@@ -247,7 +247,9 @@ void loop() {
     SliderToVal(2);
   }
 
-
+/*
+ 
+  */
 }
 void CheckJoystick()
 {
@@ -285,7 +287,7 @@ void UdpRead()
     if (!msg.hasError() && msg.match(concatName.c_str())>0)
     {     
         ////Receive Haptic pulse
-        if (msg.fullMatch(haptic.c_str())) // In your application send ("/AxisName/haptic") (not literally"AxisName", whatever you have set AxisName as)and int slider(1 or 2), int period (suggest 5 - 20), int value(0 - 255)
+        if (msg.fullMatch(haptic.c_str())) // In your application send ("/AxisName/haptic") (not literally"AxisName", whatever you have set AxisName as)and int slider(1 or 2), int period (suggest 3 - 5), int value(0 - 255)
         {
             bump(msg.getInt(0), msg.getInt(1), msg.getInt(2));
         }
@@ -301,21 +303,21 @@ void UdpRead()
           SteppedReceive(msg.getInt(0), msg.getInt(1));
         } 
 
-          /////receive joystickMode
-          if (msg.fullMatch(joystick.c_str()))  // 
+          /////receive steppedMode
+          if (msg.fullMatch(joystick.c_str()))   
         { 
           JoystickReceive(msg.getInt(0), msg.getInt(1)); // slider, 0 = off, anything else is on.
         } 
 
-          if (msg.fullMatch(followMode.c_str()))  // 
+          if (msg.fullMatch(followMode.c_str()))  
         { 
           FollowReceive(msg.getInt(0), msg.getInt(1)); // slider, follow distance. Send 255 to turn off.
         } 
-         if (msg.fullMatch(led.c_str()))  // 
+         if (msg.fullMatch(led.c_str()))  // ledValue
         { 
           setLED(msg.getInt(0)); 
+     
         } 
-       
        
       }
     } 
@@ -377,7 +379,7 @@ void JoystickReceive(int slider, int active)
 
 void SnapReceive(int slider, int target)  // Just sets values, as SnaptoVal is called by update while slider does not equal the target value 
 {
-  Serial.println("receivedSnap");
+  //Serial.println("receivedSnap");
   if (slider ==1)
   {
     sliderOneTarget = target;
@@ -486,6 +488,8 @@ void batLevel()   // writes led brightness based on battery charge. Also, power 
 
 
 void ReadAndAverageInputs() {
+  bool isIdle1 = false;
+  bool isIdle2 = false;
   total = total - readings[readIndex];
   total2 = total2 - readings2[readIndex];
   readings[readIndex] = (analogRead(A3) / 4) * -1 ;
@@ -501,11 +505,30 @@ void ReadAndAverageInputs() {
   finalA = fader1Val / 4 + 255;
   finalB = fader2Val / 4 + 255;
 
-  int dif1 = fader1Val - oldSliderOne;
-  int dif2 = fader2Val - oldSliderTwo;
+  int dif1 = finalA - oldSliderOne;
+  int dif2 = finalB - oldSliderTwo;
   dif1 = abs(dif1);  // abs gets absolute value - best to avoid maths in abs function, so looks weird
   dif2 = abs (dif2);
-  if (finalA != oldSliderOne && !moveOne) //||fader2Val != oldSliderTwo)//&& millis() - idleTime < idleTimeThreshold)  // if slider has been moving, will continue to send every value change, 
+  if (dif1>=2)
+  {
+    idleTime1 = millis(); //resets idle time
+  }
+   if (dif2>=2)
+  {
+    idleTime2 = millis();
+  }
+  if (millis() - idleTime1 > idleTimeThreshold) 
+  {
+    isIdle1 = true;
+  }
+
+  
+  if (millis() - idleTime2 > idleTimeThreshold)
+  {
+    isIdle2 = true;
+  }
+  
+  if (finalA != oldSliderOne && !moveOne && !isIdle1) 
   {
     //idleTime = millis();
    
@@ -514,7 +537,6 @@ void ReadAndAverageInputs() {
     if (!steppedA) 
     {
     SendOutput();
-
     
     }
     else
@@ -529,9 +551,9 @@ void ReadAndAverageInputs() {
     } 
 
   }
-   if (finalB != oldSliderTwo && !moveTwo) //||fader2Val != oldSliderTwo)//&& millis() - idleTime < idleTimeThreshold)  // if slider has been moving, will continue to send every value change, 
+   if (finalB != oldSliderTwo && !moveTwo && !isIdle2) 
   {
-    //idleTime = millis();
+    
     if (!steppedB) 
     {
     SendOutput();
@@ -545,13 +567,7 @@ void ReadAndAverageInputs() {
       }
     } 
    }
-//To do  - Idle to filter twitches
- // else if(dif1 >10 || dif2>10) // but if has been sitting, only send if a movement greater than 1
-  //{
-   // SendOutput();
- // }
 
-  
   
 }
 void snapBack(int slider)  /// Joystick mode - snap back from ends
