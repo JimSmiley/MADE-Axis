@@ -1,4 +1,4 @@
 Suggest using MadeAxis Wifi - contains bugfixes, especially in SliderToVal method to fix oscillation. Uses Open Sound Control over wifi instead of bluetooth,
-which simplifies a number of things potentially.
+which simplifies a number of things potentially. https://github.com/Iam1337/extOSC is excellent for unity.
 Not yet tested with multiple madeAxis and the effect on latency and network congestion.
-To Do: modify Hololens Application for wifi version.
+To Do: modify Hololens Application for wifi version
